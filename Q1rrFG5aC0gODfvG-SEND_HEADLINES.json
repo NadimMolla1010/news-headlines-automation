@@ -1,0 +1,362 @@
+{
+  "name": "SEND_HEADLINES",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8,
+              "triggerAtMinute": 1
+            }
+          ]
+        }
+      },
+      "id": "e79faaff-8225-495c-a91a-570f898c9563",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -496,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.thedailystar.net/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "05c813a2-746a-4883-99dd-b36de3872aa4",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -240,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": ".card-title a",
+              "returnArray": true
+            },
+            {
+              "key": "link",
+              "cssSelector": ".card-title a",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2ae669c5-7883-4584-877a-d1eb24e57fbc",
+      "name": "HTML",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst titles = data.title || [];\nconst links = data.link || [];\n\nconst BASE_URL = \"https://www.thedailystar.net\";\nconst seen = new Set();\nconst cleaned = [];\n\nfor (let i = 0; i < titles.length; i++) {\n  let title = (titles[i] || \"\").toString().trim();\n  let link = (links[i] || \"\").toString().trim();\n\n  if (!title || !link) continue;\n  if (seen.has(title)) continue;\n  seen.add(title);\n\n  if (link.startsWith(\"/\")) {\n    link = BASE_URL + link;\n  }\n\n  cleaned.push({ title, link });\n}\n\nreturn cleaned.map(c => ({ json: c }));"
+      },
+      "id": "04bdbaf9-daa4-4009-b330-f86233336d51",
+      "name": "clean duplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "0edcc4d7-d4b5-4fdc-a9d9-b8e9768adbdc",
+      "name": "Aggregate Headlines",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        416,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a news editor. Below is a JSON list of headlines and links scraped from a Bangladeshi English newspaper's homepage today.\n\nSelect the 5 most newsworthy, important stories (prioritize national politics, economy, major international news, and significant local events; deprioritize sports scores, lifestyle, and opinion pieces unless nothing else qualifies).\n\nReturn ONLY valid JSON in this exact format, ordered from most to least important:\n[\n  {\"rank\": 1, \"title\": \"...\", \"link\": \"...\"},\n  {\"rank\": 2, \"title\": \"...\", \"link\": \"...\"},\n  {\"rank\": 3, \"title\": \"...\", \"link\": \"...\"},\n  {\"rank\": 4, \"title\": \"...\", \"link\": \"...\"},\n  {\"rank\": 5, \"title\": \"...\", \"link\": \"...\"}\n]\n\nHeadlines:\n{{ JSON.stringify($json.data) }}",
+        "batching": {}
+      },
+      "id": "39f582cd-bc05-416b-927d-b6d55626d843",
+      "name": "Message a model",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        432,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-2.5-flash",
+        "options": {
+          "maxTokens": 1500
+        }
+      },
+      "id": "dbd94c62-1c2b-49e7-9480-7a4372c23c55",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        720,
+        208
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "kZX8QKXhHhc44ZQJ",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = ($input.first().json.text || $input.first().json.output || \"\").trim();\n\nconst cleaned = raw\n  .replace(/^```json\\s*/i, '')\n  .replace(/^```\\s*/, '')\n  .replace(/```$/, '')\n  .trim();\n\nconst top5 = JSON.parse(cleaned);\n\nconst today = new Date().toLocaleDateString('en-GB', {\n  day: 'numeric', month: 'long', year: 'numeric'\n});\n\nlet storiesHtml = '';\ntop5.forEach(story => {\n  storiesHtml += `<h3>${story.rank}. ${story.title}</h3>\n                  <p><a href=\"${story.link}\">${story.link}</a></p>`;\n});\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"UTF-8\"><title>Top 5 News</title></head>\n<body>\n<h1>Top 5 News — ${today}</h1>\n${storiesHtml}\n</body>\n</html>`;\n\nconst htmlBase64 = Buffer.from(html, 'utf-8').toString('base64');\n\nreturn [{ json: { html, htmlBase64, today } }];"
+      },
+      "id": "adba9009-6f22-4fd3-affd-b75f19930370",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://v2.convertapi.com/convert/html/to/docx",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "convertApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"Parameters\": [\n    {\n      \"Name\": \"File\",\n      \"FileValue\": {\n        \"Name\": \"digest.html\",\n        \"Data\": \"{{ $json.htmlBase64 }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "7f80064a-9a09-4313-a227-e791743b222e",
+      "name": "HTTP Request1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1024,
+        -16
+      ],
+      "credentials": {
+        "convertApi": {
+          "id": "LyFaw5hMMWxjsxTQ",
+          "name": "ConvertAPI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "Files[0].FileData",
+        "options": {
+          "fileName": "digest.docx",
+          "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      },
+      "id": "4a54bb00-bff3-4458-9b84-ba2f3bb68bb0",
+      "name": "Convert to File",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1248,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "nadimzihan1010@gmail.com",
+        "subject": "Generated File",
+        "message": "Hello Nadim, here is your file.",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
+      },
+      "id": "653d80bf-59ad-4a95-a8dd-1026b9c9490f",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1472,
+        -16
+      ],
+      "webhookId": "349f53aa-9f96-4431-a11f-bfce40e9432d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "j1ICQ4UK4Y9G0l1U",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "clean duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "clean duplicate": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Headlines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Headlines": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Message a model",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
