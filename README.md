@@ -1,67 +1,56 @@
 # 📰 News Headlines Automation
 
-An automated n8n workflow that collects news headlines from **The Daily Star**, uses AI to select the five most important stories, and sends them to your email as a Word document.
+An automated n8n workflow that collects news headlines from The Daily Star, uses an AI model to select the five most important stories, and emails them to you as a Word document.
 
 ## 🚀 Features
-
-- Automatically collects news headlines from The Daily Star.
-- Uses AI (Google Gemini 2.5 Flash via OpenRouter) to select the top 5 important stories.
-- Prioritizes national politics, economy, international news, and important local events.
-- Converts the selected news into a Word document.
-- Sends the document directly to your email through Gmail.
-- Runs automatically every day.
+- Collects news headlines from The Daily Star
+- Removes duplicate headlines with JavaScript
+- Uses AI (Google Gemini 2.5 Flash via OpenRouter) to select the top 5 stories
+- Prioritizes national politics, economy, international news, and important local events
+- Converts the selected news into a Word document
+- Sends the document through Gmail as an attachment
+- Runs automatically every day at 8:01 AM
 
 ## 🛠️ Technologies Used
-
-- **n8n** – Workflow automation
-- **OpenRouter** – AI model integration
-- **Google Gemini 2.5 Flash** – AI-powered news selection
-- **The Daily Star** – News source
-- **ConvertAPI** – HTML to Word document conversion
-- **Gmail** – Email delivery
+- **n8n**: workflow automation
+- **OpenRouter**: AI model access
+- **Google Gemini 2.5 Flash**: selects the top stories
+- **ConvertAPI**: HTML to Word conversion
+- **Gmail**: email delivery
+- **JavaScript**: cleaning and de-duplicating headlines (n8n Code node)
 
 ## ⚙️ Workflow Overview
-
-1. Schedule Trigger starts the workflow every day at 8:01 AM.
-2. HTTP Request fetches the latest headlines from The Daily Star.
-3. HTML Extract extracts headlines and article links.
-4. JavaScript processes the headlines and removes duplicates.
-5. AI selects the five most important news stories.
-6. The selected stories are converted into a Word document.
-7. Gmail sends the document as an email attachment.
+1. **Schedule Trigger** starts the workflow every day at 8:01 AM.
+2. **HTTP Request** fetches the latest headlines page from The Daily Star.
+3. **HTML Extract** pulls out headlines and article links.
+4. **JavaScript (Code node)** processes the headlines and removes duplicates.
+5. **AI (OpenRouter)** selects the five most important stories.
+6. **ConvertAPI** converts the selected stories into a Word document.
+7. **Gmail** sends the document as an email attachment.
 
 ## 📂 Project Structure
-
-```text
+```
 news-headlines-automation/
-│
 ├── README.md
-│
-└── workflows/
-    └── SEND_HEADLINES.json
+└── Q1rrFG5aC0gODfvG-SEND_HEADLINES.json   # n8n workflow export
 ```
 
 ## 🔧 Setup Instructions
-
 1. Install or access an n8n instance.
-2. Import `workflows/SEND_HEADLINES.json` into n8n.
-3. Configure your OpenRouter API credentials.
-4. Configure ConvertAPI credentials.
+2. Import `Q1rrFG5aC0gODfvG-SEND_HEADLINES.json` into n8n (**Workflows → Import from File**).
+3. Add your OpenRouter API credentials.
+4. Add your ConvertAPI credentials.
 5. Connect your Gmail account using OAuth2.
-6. Update the recipient email address in the Gmail node.
-7. Test the workflow and activate it.
+6. Change the recipient email address in the Gmail node.
+7. Test the workflow, then activate it.
 
 ## 🔐 Requirements
-
-- n8n instance
+- An n8n instance
 - OpenRouter API key
 - ConvertAPI account and API key
 - Gmail account with OAuth2 authorization
 
-**Note:** The workflow depends on The Daily Star's website structure and external API services. Changes to these services may require workflow updates.
+> **Note:** The workflow depends on The Daily Star's website structure and on external API services. Changes to either may require workflow updates.
 
 ## 👨‍💻 Author
-
-**Nadim Molla**
-
-- GitHub: [@NadimMolla1010](https://github.com/NadimMolla1010)
+**Md Nadim Molla** | [LinkedIn](https://linkedin.com/in/nadim-molla) | [GitHub](https://github.com/NadimMolla1010)
